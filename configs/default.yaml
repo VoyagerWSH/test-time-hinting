@@ -1,0 +1,164 @@
+# Test-Time Hinting: hint optimization (Proposer / Checker / Experimenter)
+# Example: Gemini as experimenter (target VLM), OpenAI as proposer and checker.
+
+input_csv: ""
+output_dir: "outputs"
+image_base_path: ""
+
+id_col: "id"
+image_col: "image_path"
+question_col: "question"
+gt_answer_col: "gt_answer"
+gt_rationale_col: "gt_rationale"
+base_answer_col: "base_answer"
+base_rationale_col: "base_rationale"
+base_correct_col: "base_correct"
+caption_col: ""
+
+process_repair: true
+process_reinforcement: false
+
+max_rounds: 3
+skip_checker: false
+
+seed: 3407
+checkpoint_every_n: 50
+num_workers: 1
+
+proposer:
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.0
+  top_p: 1.0
+  max_output_tokens: 2048
+  timeout: 120.0
+  max_retries: 3
+  max_concurrent: 4
+
+checker:
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.0
+  top_p: 1.0
+  max_output_tokens: 1024
+  timeout: 120.0
+  max_retries: 3
+  max_concurrent: 4
+
+experimenter:
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.0
+  top_p: 1.0
+  max_output_tokens: 8192
+  timeout: 120.0
+  max_retries: 3
+  max_concurrent: 4
+  thinking_budget: 0
+
+proposer_system_prompt_repair: |
+  You write short, non-authoritative hint lists to improve first-try VQA accuracy.
+
+  You receive PRIVATE context (do not reveal): image, question, ground-truth rationales, the ground-truth answer, and a prior incorrect answer/reasoning.
+
+  Goal: write hints that help the model NOTICE the right evidence and avoid the specific confusion that caused the prior mistake—without leaking the answer.
+
+  Write a hint JSON with 1–3 items:
+  - At least ONE item must be contrastive: ask to distinguish between two plausible alternatives by checking discriminative evidence.
+    Allowed: "X vs Y" / "whether ... or ..." / "distinguish ... from ..."
+    Prohibited: explicit rule mapping "if you see A then ... / if you see B then ...".
+  - Remaining items may be non-contrastive attention checks; must NOT reveal the answer.
+
+  Rules: Do NOT name the answer, option letters, or say "choose"/"pick"/"select". Avoid "clearly", "definitely", "obviously". Prefer procedural phrasing ("Check/Verify/Compare..."), not assertions ("The image shows..."). Keep hints minimal.
+
+  Output EXACTLY one JSON: {"hint":["..."]}
+
+proposer_user_prompt_template_repair: |
+  {INTRO}
+
+  Q:
+  {QUESTION}
+
+  GT rationales (PRIVATE):
+  {CAPTION}
+
+  A (PRIVATE): {GROUND_TRUTH_ANSWER}
+
+  Prior incorrect answer/reasoning (PRIVATE):
+  Answer: {BASE_ANSWER}
+  Reasoning: {BASE_REASONING}
+
+  Optional checker feedback: {OPTIONAL_CHECKER_FEEDBACK}
+
+  Optional experimenter last attempt:
+  Answer: {OPTIONAL_EXPERIMENTER_LAST_ANSWER}
+  Reasoning: {OPTIONAL_EXPERIMENTER_LAST_REASONING}
+
+  Task: Write 1–3 hint items. Include >=1 contrastive item. JSON only: {"hint":["..."]}
+
+proposer_system_prompt_reinforce: |
+  You write short, non-authoritative hint lists that reinforce correct VQA reasoning without leaking the answer.
+
+  PRIVATE context: image, question, ground-truth rationales, ground-truth answer, and a prior correct answer/reasoning.
+
+  Write a hint JSON with 1–3 items. At least ONE must be contrastive (guard against a plausible distractor). No answer leakage; procedural checks only; keep minimal.
+
+  Output EXACTLY: {"hint":["..."]}
+
+proposer_user_prompt_template_reinforce: |
+  {INTRO}
+
+  Q: {QUESTION}
+
+  GT rationales (PRIVATE): {CAPTION}
+  A (PRIVATE): {GROUND_TRUTH_ANSWER}
+
+  Prior correct answer/reasoning: Answer: {BASE_ANSWER} Reasoning: {BASE_REASONING}
+
+  Optional checker feedback: {OPTIONAL_CHECKER_FEEDBACK}
+  Optional experimenter last: Answer: {OPTIONAL_EXPERIMENTER_LAST_ANSWER} Reasoning: {OPTIONAL_EXPERIMENTER_LAST_REASONING}
+
+  Task: Write 1–3 hint items. JSON only: {"hint":["..."]}
+
+checker_system_prompt_repair: |
+  You are a strict hint checker for VQA hints.
+
+  Output EXACT: {"verdict":"pass|revise","feedback":"...","hint":["..."]}
+  hint length 1–3. At least ONE item must be contrastive. No answer leakage; no certainty language; no "the image shows..."; anti-overthinking.
+  If verdict=pass, feedback must be "". If revise, minimally rewrite hint and give 1–2 sentences feedback.
+
+checker_user_prompt_template_repair: |
+  Q: {QUESTION}
+  GT rationales (PRIVATE): {CAPTION}
+  A (PRIVATE): {GROUND_TRUTH_ANSWER}
+  Prior incorrect: Answer: {BASE_ANSWER} Reasoning: {BASE_REASONING}
+  Candidate hint: {HINT_JSON}
+  Return pass or revise. Schema: {"verdict":"pass|revise","feedback":"...","hint":["..."]}
+
+checker_system_prompt_reinforce: |
+  Strict checker for reinforcement hints. Output EXACT: {"verdict":"pass|revise","feedback":"...","hint":["..."]}
+  hint 1–3 items; >=1 contrastive; no answer leakage; minimal.
+
+checker_user_prompt_template_reinforce: |
+  Q: {QUESTION}
+  GT (PRIVATE): {CAPTION} A: {GROUND_TRUTH_ANSWER}
+  Prior correct: Answer: {BASE_ANSWER} Reasoning: {BASE_REASONING}
+  Candidate hint: {HINT_JSON}
+  Pass or revise. {"verdict":"pass|revise","feedback":"...","hint":["..."]}
+
+experimenter_system_prompt: |
+  You are a visual question answering (VQA) system. Answer using the image. Question may be Yes/No or MCQ (A, B, ...).
+
+  You may receive an auxiliary hint; it is non-authoritative. Use it only as a checklist; image + question are the only evidence.
+
+  Output EXACTLY one JSON: {"answer":"<Yes|No|LETTER>","reasoning":"<BRIEF_JUSTIFICATION>"}
+  No extra text, no markdown.
+
+experimenter_user_prompt_template: |
+  Answer using the provided image. Image + question are the only evidence.
+
+  Question:
+  {QUESTION}
+
+  Auxiliary hint (may be irrelevant):
+  {HINT_JSON}
