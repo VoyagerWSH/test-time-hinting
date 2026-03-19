@@ -1,4 +1,6 @@
 # Test-Time Hinting
+**Paper:** [Test-Time Hinting for Black-Box Vision-Language Models](https://arxiv.org/abs/XXXX.XXXXX)
+**Authors:** [Kaihua Hou](https://kaihua-hou.com/), [Abhijith Varma Mudunuri](https://github.com/mabhi02), [Jiaxing Qiu](https://med.virginia.edu/advanced-medical-analytics/our-people/jiaxing-joy-qiu-ms-phd/), [Roxana Daneshjou](https://profiles.stanford.edu/roxana-daneshjou), [Thomas Hartvigsen](https://www.tomhartvigsen.com/), [Ahmed Alaa](https://vcresearch.berkeley.edu/faculty/ahmed-alaa)
 
 **Test-time scaling (TTS)** has proven effective for LLMs; its application to vision–language models (VLMs) remains less explored. Existing VLM TTS methods often require open-weight access or expensive repeated sampling. **Test-Time Hinting (TTH)** improves VLM performance via a single VLM call and black-box API access: a lightweight hint generator predicts, for a given test input, which “hint” to prepend to the prompt, providing targeted guidance that steers the VLM away from characteristic failure modes. Hints improve accuracy on natural-image VQA and generalize to unseen benchmarks and VLMs without retraining.
 
@@ -21,16 +23,17 @@ Set API keys (e.g. in the environment):
 
 A CSV with one row per example. Column names are configurable; typical names:
 
-| Column         | Description                          |
-|----------------|--------------------------------------|
-| `id`           | Row identifier                        |
-| `image_path`   | Path to image file                    |
-| `question`     | Full question (include options if MCQ)|
-| `gt_answer`    | Ground-truth answer                   |
-| `gt_rationale` | Ground-truth rationale (optional)     |
-| `base_answer`  | Target model’s answer without hint    |
-| `base_rationale`| Target model’s reasoning              |
-| `base_correct` | Whether base answer matches gt        |
+| Column          | Description                                            |
+|-----------------|--------------------------------------------------------|
+| `id`            | Row identifier                                         |
+| `image_path`    | Path to image file                                     |
+| `question`      | Full question (include options if MCQ)                 |
+| `gt_answer`     | Ground-truth answer                                    |
+| `gt_rationale`  | Ground-truth rationale (optional)                      |
+| `caption`       | Alternative source of ground-truth rationale (optional)|
+| `base_answer`   | Target model’s answer without hint                     |
+| `base_rationale`| Target model’s reasoning                               |
+| `base_correct`  | Whether base answer matches gt                         |
 
 ## Usage
 
@@ -60,4 +63,3 @@ The output CSV adds columns: `hint_json`, `selected_round`, `checker_verdict`, `
 
 ## Citation
 
-If you use this code, please cite the paper (Test-Time Hinting for Black-Box Vision-Language Models, ECCV 2026).

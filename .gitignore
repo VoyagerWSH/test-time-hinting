@@ -1,0 +1,5 @@
+src/tth/__pycache__/*
+src/tth/clients/__pycache__/*
+src/tth/prompts/__pycache__/*
+out/*
+*.egg-info/
